@@ -67,8 +67,8 @@ end
 # Define MDP components
 function taxi_mdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     s₀dists = Uniform.([-10.0, -1.0], [10.0, 1.0])
-    actions = collect(range(-10.0, stop=10.0, length=n_actions))
-    reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2])
+    actions = collect(range(-5.0, stop=5.0, length=n_actions))
+    reward(s) = λₚ * (s[1]^2) + λₕ * abs(s[2])
     function gen(s, a) 
         x′, y′, θ′ = next_position(s[1], s[2], 0.0, a)
         r = reward([x′, θ′])
@@ -137,13 +137,13 @@ function taxi_dqn(hidden_sizes, n_actions)
 end
 
 # Set up to attempt training
-n_actions = 5
+n_actions = 3
 mdp = taxi_mdp(n_actions, λₕ=-0.5)
 dqn = taxi_dqn([10, 10], n_actions)
 
-h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=256, n_grad_steps=20)
+h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=256, n_grad_steps=20, ϵ=0.3)
 
-train(dqn, mdp, h, eval)
+r_average = train(dqn, mdp, h, eval)
 
 nothing
 

@@ -107,6 +107,7 @@ function train(dqn::DQN, mdp::MDP, h::Hyperparameters, eval)
         set_postfix(episodes, R="$r_ave")
         r_average[episode] = r_ave
     end
+    return r_average
 end
 
 
