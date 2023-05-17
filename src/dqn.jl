@@ -9,6 +9,7 @@ using Plots
 struct MDP
     s₀dists::Vector{Distribution}
     actions::Vector
+    reward::Base.Callable
     gen::Base.Callable
     a2ind::Dict
 end
@@ -35,7 +36,7 @@ function to_buffer!(s, a, r, s′, replay_buffer, buffer_size)
     """
     Adds experience tuple to replay buffer while maintaining correct buffer size
     """
-    length(replay_buffer) > buffer_size ? pop!(replay_buffer) : nothing
+    length(replay_buffer) == buffer_size ? pop!(replay_buffer) : nothing
     push!(replay_buffer, (s=Float32.(s), a=Int32(a), r=Float32(r), s′=Float32.(s′)))
 end
 
@@ -90,9 +91,11 @@ function train(dqn::DQN, mdp::MDP, h::Hyperparameters, eval)
                 S, A, y = sample_batch(dqn.replay_buffer, dqn.target, mdp.a2ind, h.batch_size)
                 # Train
                 for _ = 1:h.n_grad_steps
-                    _, back = Flux.pullback(() -> dqn_loss(dqn.policy, S, A, y), θ)
+                    loss, back = Flux.pullback(() -> dqn_loss(dqn.policy, S, A, y), θ)
                     update!(opt, θ, back(1.0f0))
+                    # println(loss)
                 end
+                # println()
                 # Update target if time
                 target_step_counter += 1
                 if target_step_counter == h.update_target_every

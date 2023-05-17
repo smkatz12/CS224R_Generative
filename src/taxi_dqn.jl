@@ -13,13 +13,22 @@ function dynamics(x, y, θ, ϕ; dt=0.05, v=5, L=5)
         ϕ: steering angle
     """
 
-    ẋ = v * sind(θ)
-    ẏ = v * cosd(θ)
+    # ẋ = v * sind(θ)
+    # ẏ = v * cosd(θ)
+    # θ̇ = (v / L) * tand(ϕ)
+
+    # x′ = x + ẋ * dt
+    # y′ = y + ẏ * dt
+    # θ′ = θ + rad2deg(θ̇) * dt
+
     θ̇ = (v / L) * tand(ϕ)
+    θ′ = θ + rad2deg(θ̇) * dt
+
+    ẋ = v * sind(θ′)
+    ẏ = v * cosd(θ′)
 
     x′ = x + ẋ * dt
     y′ = y + ẏ * dt
-    θ′ = θ + θ̇ * dt
 
     return x′, y′, θ′
 end
@@ -31,7 +40,7 @@ function next_position(x, y, θ, ϕ; control_every=10, v=5, L=5)
     return x, y, θ
 end
 
-function sim_episode(mdp, policy; n_steps=50, λₚ=-1.0, λₕ=-1.0)
+function sim_episode(mdp, policy; n_steps=50)
     cs = zeros(n_steps+1)
     ds = zeros(n_steps+1)
     hs = zeros(n_steps+1)
@@ -41,12 +50,12 @@ function sim_episode(mdp, policy; n_steps=50, λₚ=-1.0, λₕ=-1.0)
     cs[1] = s₀[1]
     ds[1] = 0.0
     hs[1] = s₀[2]
-    rs[1] = λₚ * s₀[1] + λₕ * s₀[2]
+    rs[1] = mdp.reward([s₀[1], s₀[2]])
 
     for step in 1:n_steps
         ϕ = mdp.actions[argmax(policy([cs[step], hs[step]]))]
         x′, y′, θ′ = next_position(cs[step], ds[step], hs[step], ϕ)
-        r = λₚ * abs(x′) + λₕ * abs(θ′)
+        r = mdp.reward([x′, θ′])
         cs[step+1] = x′
         ds[step+1] = y′
         hs[step+1] = θ′
@@ -59,21 +68,22 @@ end
 function taxi_mdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     s₀dists = Uniform.([-10.0, -1.0], [10.0, 1.0])
     actions = collect(range(-10.0, stop=10.0, length=n_actions))
+    reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2])
     function gen(s, a) 
         x′, y′, θ′ = next_position(s[1], s[2], 0.0, a)
-        r = λₚ * abs(x′) + λₕ * abs(θ′)
+        r = reward([x′, θ′])
         return [x′, θ′], r
     end
     a2ind = Dict()
     for (i, a) in enumerate(actions)
         a2ind[a] = i
     end
-    return MDP(s₀dists, actions, gen, a2ind)
+    return MDP(s₀dists, actions, reward, gen, a2ind)
 end
 
 # Create evaluation functions
 rectangle(w, h, x, y) = Shape(x .+ [0, w, w, 0], y .+ [0, 0, h, h])
-function plot_runway(; downtrack=500.0, green_width=2.0)
+function plot_runway(; downtrack=150.0, green_width=2.0)
     p = plot(rectangle(downtrack, green_width, 0, -green_width-10), legend=false, color=:green,
     xlims=(0.0, downtrack), ylims=(-green_width-10, 10+green_width))
     plot!(p, rectangle(downtrack, green_width, 0, 10), legend=false, color=:green)
@@ -128,9 +138,17 @@ end
 
 # Set up to attempt training
 n_actions = 5
-mdp = taxi_mdp(n_actions)
+mdp = taxi_mdp(n_actions, λₕ=-0.5)
 dqn = taxi_dqn([10, 10], n_actions)
 
-h = Hyperparameters(buffer_size=500, save_folder="src/results/")
+h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=256, n_grad_steps=20)
 
 train(dqn, mdp, h, eval)
+
+nothing
+
+# random_policy(s) = rand(5)
+# left_policy(s) = [1.0, 0.0, 0.0, 0.0, 0.0]
+# right_policy(s) = [0.0, 0.0, 0.0, 0.0, 1.0]
+# straight_policy(s) = [0.0, 0.0, 1.0, 0.0, 0.0]
+# eval(mdp, random_policy, 0, "src/", n_eps=1)
