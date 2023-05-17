@@ -36,7 +36,7 @@ function to_buffer!(s, a, r, s′, replay_buffer, buffer_size)
     """
     Adds experience tuple to replay buffer while maintaining correct buffer size
     """
-    length(replay_buffer) == buffer_size ? pop!(replay_buffer) : nothing
+    length(replay_buffer) == buffer_size ? popfirst!(replay_buffer) : nothing
     push!(replay_buffer, (s=Float32.(s), a=Int32(a), r=Float32(r), s′=Float32.(s′)))
 end
 
@@ -66,19 +66,25 @@ end
 function train(dqn::DQN, mdp::MDP, h::Hyperparameters, eval)
     # Gather parameters and initialize optimizer
     θ = Flux.params(dqn.policy)
-    opt = ADAM(1e-3)
+    opt = ADAM(h.learning_rate)
 
     # Initialize some counters and storage
     target_step_counter = 0
     episodes = ProgressBar(1:h.n_eps)
     r_average = zeros(h.n_eps)
+    r_stdev = zeros(h.n_eps)
 
     for episode in episodes
         # Reset to sampled initial state
         s = Float32.(rand.(mdp.s₀dists))
         for step in 1:h.n_steps
-            # Sample an action with ϵ-greedy exploration
-            a = rand() < h.ϵ ? rand(mdp.actions) : mdp.actions[argmax(dqn.policy(s))]
+            if length(dqn.replay_buffer) < h.buffer_size
+                # Exploration phase
+                a = rand(mdp.actions)
+            else
+                # Sample an action with ϵ-greedy exploration
+                a = rand() < h.ϵ ? rand(mdp.actions) : mdp.actions[argmax(dqn.policy(s))]
+            end
             # Simulation step
             s′, r = mdp.gen(s, a)
             # Add experience tuple to replay buffer
@@ -100,14 +106,16 @@ function train(dqn::DQN, mdp::MDP, h::Hyperparameters, eval)
                 target_step_counter += 1
                 if target_step_counter == h.update_target_every
                     dqn.target = deepcopy(dqn.policy)
+                    target_step_counter = 0
                 end
             end
         end
-        r_ave = eval(mdp, dqn.policy, episode, h.save_folder)
-        set_postfix(episodes, R="$r_ave")
+        r_ave, r_std = eval(mdp, dqn.policy, episode, h.save_folder)
+        set_postfix(episodes, R="$r_ave", StDev="$r_std")
         r_average[episode] = r_ave
+        r_stdev[episode] = r_std
     end
-    return r_average
+    return r_average, r_stdev
 end
 
 

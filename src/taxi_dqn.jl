@@ -100,7 +100,7 @@ function plot_results(crosstracks, downtracks, episode_number, save_folder)
     savefig("$(save_folder)$(episode_number).png")
 end
 
-function eval(mdp, policy, ep_num, save_folder; n_eps=10, n_steps=50, plt_every=100)
+function eval(mdp, policy, ep_num, save_folder; n_eps=10, n_steps=50, plt_every=20)
     crosstracks = []
     downtracks = []
     headings = []
@@ -110,15 +110,16 @@ function eval(mdp, policy, ep_num, save_folder; n_eps=10, n_steps=50, plt_every=
         push!(crosstracks, cs)
         push!(downtracks, ds)
         push!(headings, hs)
-        push!(rewards, mean(rs))
+        push!(rewards, sum(rs))
     end
     r_ave = mean(rewards)
+    r_std = std(rewards)
 
     if ep_num % plt_every == 0
         plot_results(crosstracks, downtracks, ep_num, save_folder)
     end
 
-    return r_ave
+    return r_ave, r_std
 end
 
 # Define networks
@@ -138,14 +139,22 @@ end
 
 # Set up to attempt training
 n_actions = 3
-mdp = taxi_mdp(n_actions, λₕ=-0.5)
+mdp = taxi_mdp(n_actions, λₕ=-1.0)
 dqn = taxi_dqn([10, 10], n_actions)
 
-h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=256, n_grad_steps=20, ϵ=0.3)
+h = Hyperparameters(buffer_size=10000, save_folder="src/results/", batch_size=256, 
+    n_grad_steps=20, ϵ=0.3, n_eps=2000, learning_rate=1e-3)
 
-r_average = train(dqn, mdp, h, eval)
+r_average, r_std = train(dqn, mdp, h, eval)
+
+plot(collect(1:500), r_average[1:500], legend=false)
+# savefig("src/results/run1.png")
+
 
 nothing
+
+using BSON: @save
+@save "src/results/run1.bson" r_average dqn
 
 # random_policy(s) = rand(5)
 # left_policy(s) = [1.0, 0.0, 0.0, 0.0, 0.0]
