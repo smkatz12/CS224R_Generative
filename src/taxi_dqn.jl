@@ -139,7 +139,7 @@ end
 
 # Set up to attempt training
 n_actions = 3
-mdp = taxi_mdp(n_actions, λₕ=-1.0)
+mdp = taxi_mdp(n_actions, λₕ=-10.0)
 dqn = taxi_dqn([10, 10], n_actions)
 
 h = Hyperparameters(buffer_size=10000, save_folder="src/results/", batch_size=256, 
