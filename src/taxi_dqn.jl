@@ -1,8 +1,10 @@
 using Plots
 using Statistics
 using LinearAlgebra
+#using NeuralVerification
 
 include("dqn.jl")
+
 
 # Define dynamics model
 function dynamics(x, y, θ, ϕ; dt=0.05, v=5, L=5)
@@ -65,12 +67,14 @@ function sim_episode(mdp, policy; n_steps=50)
 end
 
 # Define MDP components
+# For some reason, taxi_mdp does not compile (segfault) in debug mode when NeuralVerification is used!
 function taxi_mdp(n_actions; λₚ=-1.0, λₕ=-1.0)
-    s₀dists = Uniform.([-10.0, -1.0], [10.0, 1.0])
+    s₀dists = Uniform.([-10.0, -1.0], [10.0, 1.0]) #Two uniform distros. One between -10/10 and the other between -1/1
+    #Captures 2-d state space
     actions = collect(range(-5.0, stop=5.0, length=n_actions))
-    reward(s) = λₚ * (s[1]^2) + λₕ * abs(s[2])
+    reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2])
     function gen(s, a) 
-        x′, y′, θ′ = next_position(s[1], s[2], 0.0, a)
+        x′, y′, θ′ = next_position(s[1], 0.0, s[2], a)
         r = reward([x′, θ′])
         return [x′, θ′], r
     end
@@ -83,6 +87,7 @@ end
 
 # Create evaluation functions
 rectangle(w, h, x, y) = Shape(x .+ [0, w, w, 0], y .+ [0, 0, h, h])
+
 function plot_runway(; downtrack=150.0, green_width=2.0)
     p = plot(rectangle(downtrack, green_width, 0, -green_width-10), legend=false, color=:green,
     xlims=(0.0, downtrack), ylims=(-green_width-10, 10+green_width))
@@ -137,13 +142,19 @@ function taxi_dqn(hidden_sizes, n_actions)
     return DQN(policy, target, replay_buffer)
 end
 
+
+##########Originals##########
+#n_eps = 2000
+#λₕ = -10
+#λₚ = -1
+#n_actions = 3
+
 # Set up to attempt training
 n_actions = 3
-mdp = taxi_mdp(n_actions, λₕ=-10.0)
+mdp = taxi_mdp(n_actions, λₚ=-10.0)
 dqn = taxi_dqn([10, 10], n_actions)
 
-h = Hyperparameters(buffer_size=10000, save_folder="src/results/", batch_size=256, 
-    n_grad_steps=20, ϵ=0.3, n_eps=2000, learning_rate=1e-3)
+h = Hyperparameters(buffer_size=10000, save_folder="src/results/",batch_size=256, n_grad_steps=20, ϵ=0.3, n_eps=500, learning_rate=1e-3)
 
 r_average, r_std = train(dqn, mdp, h, eval)
 
