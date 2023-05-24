@@ -14,6 +14,16 @@ struct MDP
     a2ind::Dict
 end
 
+struct POMDP
+    s₀dists::Vector{Distribution} #State space
+    actions::Vector #Action Space
+    reward::Base.Callable #Reward Function 
+    obs::Vector{Distribution} #Observation Space
+    gen::Base.Callable #Transtion Function 
+    a2ind::Dict
+end
+
+
 mutable struct DQN
     policy
     target
@@ -63,7 +73,7 @@ function dqn_loss(policy, S, A, y)
     return Flux.Losses.mse(ŷ, y)
 end
 
-function train(dqn::DQN, mdp::MDP, h::Hyperparameters, eval)
+function train(dqn::DQN, pomdp::POMDP, h::Hyperparameters, eval)
     # Gather parameters and initialize optimizer
     θ = Flux.params(dqn.policy)
     opt = ADAM(h.learning_rate)
@@ -76,17 +86,17 @@ function train(dqn::DQN, mdp::MDP, h::Hyperparameters, eval)
 
     for episode in episodes
         # Reset to sampled initial state
-        s = Float32.(rand.(mdp.s₀dists))
+        s = Float32.(rand.(pomdp.s₀dists))
         for step in 1:h.n_steps
             if length(dqn.replay_buffer) < h.buffer_size
                 # Exploration phase
-                a = rand(mdp.actions)
+                a = rand(pomdp.actions)
             else
                 # Sample an action with ϵ-greedy exploration
-                a = rand() < h.ϵ ? rand(mdp.actions) : mdp.actions[argmax(dqn.policy(s))]
+                a = rand() < h.ϵ ? rand(pomdp.actions) : pomdp.actions[argmax(dqn.policy(s))]
             end
             # Simulation step
-            s′, r = mdp.gen(s, a)
+            s′, r = pomdp.gen(s, a)
             # Add experience tuple to replay buffer
             to_buffer!(s, a, r, s′, dqn.replay_buffer, h.buffer_size)
             # Update current state
@@ -94,7 +104,7 @@ function train(dqn::DQN, mdp::MDP, h::Hyperparameters, eval)
             # If enough data is in the replay buffer, perform some training steps
             if length(dqn.replay_buffer) == h.buffer_size
                 # Get training batch
-                S, A, y = sample_batch(dqn.replay_buffer, dqn.target, mdp.a2ind, h.batch_size)
+                S, A, y = sample_batch(dqn.replay_buffer, dqn.target, pomdp.a2ind, h.batch_size)
                 # Train
                 for _ = 1:h.n_grad_steps
                     loss, back = Flux.pullback(() -> dqn_loss(dqn.policy, S, A, y), θ)
@@ -110,7 +120,7 @@ function train(dqn::DQN, mdp::MDP, h::Hyperparameters, eval)
                 end
             end
         end
-        r_ave, r_std = eval(mdp, dqn.policy, episode, h.save_folder)
+        r_ave, r_std = eval(pomdp, dqn.policy, episode, h.save_folder)
         set_postfix(episodes, R="$r_ave", StDev="$r_std")
         r_average[episode] = r_ave
         r_stdev[episode] = r_std

@@ -1,3 +1,4 @@
 [deps]
 MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 NeuralVerification = "146f25fa-00e7-11e9-3ae5-fdbac6e12fa7"
+StatsPlots = "f3b207a7-027a-5e70-b257-86293d7955fd"
