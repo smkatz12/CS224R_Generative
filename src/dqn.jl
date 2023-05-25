@@ -47,7 +47,7 @@ function to_buffer!(s, o, a, r, s′, o′, replay_buffer, buffer_size)
     Adds experience tuple to replay buffer while maintaining correct buffer size
     """
     length(replay_buffer) == buffer_size ? popfirst!(replay_buffer) : nothing
-    push!(replay_buffer, (s=Float32.(s), o=Float32.(o), a=Int32(a), r=Float32(r), s′=Float32.(s′), o′=Float32.(o′)))
+    push!(replay_buffer, (s=Float32.(s), o=Float32.(o), a=Float32(a), r=Float32(r), s′=Float32.(s′), o′=Float32.(o′)))
 end
 
 function sample_batch(replay_buffer, target, a2ind, batch_size)
@@ -94,7 +94,7 @@ function train(dqn::DQN, pomdp::POMDP, h::Hyperparameters, eval)
                 a = rand(pomdp.actions)
             else
                 # Sample an action with ϵ-greedy exploration
-                a = rand() < h.ϵ ? rand(pomdp.actions) : pomdp.actions[argmax(dqn.policy(s))]
+                a = rand() < h.ϵ ? rand(pomdp.actions) : pomdp.actions[argmax(dqn.policy(o))]
             end
             # Simulation step
             s′, o′, r = pomdp.gen(s, a)
