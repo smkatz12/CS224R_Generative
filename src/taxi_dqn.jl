@@ -5,7 +5,6 @@ using LinearAlgebra
 
 include("dqn.jl")
 
-
 # Define dynamics model
 function dynamics(x, y, θ, ϕ; dt=0.05, v=5, L=5)
     """
@@ -55,7 +54,8 @@ function sim_episode(pomdp, policy; n_steps=50)
     rs[1] = pomdp.reward([s₀[1], s₀[2]]) 
 
     for step in 1:n_steps
-        ϕ = pomdp.actions[argmax(policy([cs[step], hs[step]]))]
+        o = pomdp.obs([cs[step], hs[step]])
+        ϕ = pomdp.actions[argmax(policy(o))]
         x′, y′, θ′ = next_position(cs[step], ds[step], hs[step], ϕ)
         r = pomdp.reward([x′, θ′])
         cs[step+1] = x′
@@ -85,24 +85,22 @@ function taxi_mdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     return MDP(s₀dists, actions, reward, gen, a2ind)
 end
 
-
 #Reformulate as POMDP
 function taxi_pomdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     s₀dists = Uniform.([-10.0, -1.0], [10.0, 1.0]) #Two uniform distros. One between -10/10 and the other between -1/1
     #Captures 2-d state space
     actions = collect(range(-5.0, stop=5.0, length=n_actions))
     reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2])
+    obs(s) = s
     function gen(s, a) 
-        x′, y′, θ′ = next_position(s[1], 0.0, s[2], a)
+        x′, _, θ′ = next_position(s[1], 0.0, s[2], a)
         r = reward([x′, θ′])
-        return [x′, θ′], r
+        return [x′, θ′], obs([x′, θ′]), r
     end
     a2ind = Dict()
     for (i, a) in enumerate(actions)
         a2ind[a] = i
     end
-
-    obs = s₀dists
     return POMDP(s₀dists, actions, reward, obs, gen, a2ind)
 end
 
@@ -175,12 +173,12 @@ n_actions = 3
 pomdp = taxi_pomdp(n_actions, λₚ=-10.0)
 dqn = taxi_dqn([10, 10], n_actions)
 
-h = Hyperparameters(buffer_size=10000, save_folder="src/results/",batch_size=256, n_grad_steps=20, ϵ=0.3, n_eps=500, learning_rate=1e-3)
+h = Hyperparameters(buffer_size=5000, save_folder="src/results/",batch_size=64, n_grad_steps=20, ϵ=0.3, n_eps=500, learning_rate=1e-3)
 
 r_average, r_std = train(dqn, pomdp, h, eval)
 
-plot(collect(1:500), r_average[1:500], fillrange=(r_average-r_std,r_average+r_std), fillalpha=0.35, c=1, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
-savefig("src/results/run1.png")
+plot(collect(1:500), r_average[1:500], fillrange=(r_average[1:500]-r_std[1:500],r_average[1:500]+r_std[1:500]), fillalpha=0.35, c=1, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
+# savefig("src/results/run1.png")
 
 nothing
 
