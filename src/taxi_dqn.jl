@@ -42,22 +42,22 @@ function next_position(x, y, θ, ϕ; control_every=10, v=5, L=5)
     return x, y, θ
 end
 
-function sim_episode(mdp, policy; n_steps=50)
+function sim_episode(pomdp, policy; n_steps=50)
     cs = zeros(n_steps+1)
     ds = zeros(n_steps+1)
     hs = zeros(n_steps+1)
     rs = zeros(n_steps+1)
 
-    s₀ = rand.(mdp.s₀dists)
+    s₀ = rand.(pomdp.s₀dists)
     cs[1] = s₀[1]
     ds[1] = 0.0
     hs[1] = s₀[2]
-    rs[1] = mdp.reward([s₀[1], s₀[2]])
+    rs[1] = pomdp.reward([s₀[1], s₀[2]]) 
 
     for step in 1:n_steps
-        ϕ = mdp.actions[argmax(policy([cs[step], hs[step]]))]
+        ϕ = pomdp.actions[argmax(policy([cs[step], hs[step]]))]
         x′, y′, θ′ = next_position(cs[step], ds[step], hs[step], ϕ)
-        r = mdp.reward([x′, θ′])
+        r = pomdp.reward([x′, θ′])
         cs[step+1] = x′
         ds[step+1] = y′
         hs[step+1] = θ′
@@ -85,6 +85,27 @@ function taxi_mdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     return MDP(s₀dists, actions, reward, gen, a2ind)
 end
 
+
+#Reformulate as POMDP
+function taxi_pomdp(n_actions; λₚ=-1.0, λₕ=-1.0)
+    s₀dists = Uniform.([-10.0, -1.0], [10.0, 1.0]) #Two uniform distros. One between -10/10 and the other between -1/1
+    #Captures 2-d state space
+    actions = collect(range(-5.0, stop=5.0, length=n_actions))
+    reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2])
+    function gen(s, a) 
+        x′, y′, θ′ = next_position(s[1], 0.0, s[2], a)
+        r = reward([x′, θ′])
+        return [x′, θ′], r
+    end
+    a2ind = Dict()
+    for (i, a) in enumerate(actions)
+        a2ind[a] = i
+    end
+
+    obs = s₀dists
+    return POMDP(s₀dists, actions, reward, obs, gen, a2ind)
+end
+
 # Create evaluation functions
 rectangle(w, h, x, y) = Shape(x .+ [0, w, w, 0], y .+ [0, 0, h, h])
 
@@ -105,13 +126,13 @@ function plot_results(crosstracks, downtracks, episode_number, save_folder)
     savefig("$(save_folder)$(episode_number).png")
 end
 
-function eval(mdp, policy, ep_num, save_folder; n_eps=10, n_steps=50, plt_every=20)
+function eval(pomdp, policy, ep_num, save_folder; n_eps=10, n_steps=50, plt_every=20)
     crosstracks = []
     downtracks = []
     headings = []
     rewards = []
     for episode in 1:n_eps
-        cs, ds, hs, rs = sim_episode(mdp, policy, n_steps=n_steps)
+        cs, ds, hs, rs = sim_episode(pomdp, policy, n_steps=n_steps)
         push!(crosstracks, cs)
         push!(downtracks, ds)
         push!(headings, hs)
@@ -151,16 +172,15 @@ end
 
 # Set up to attempt training
 n_actions = 3
-mdp = taxi_mdp(n_actions, λₚ=-10.0)
+pomdp = taxi_pomdp(n_actions, λₚ=-10.0)
 dqn = taxi_dqn([10, 10], n_actions)
 
 h = Hyperparameters(buffer_size=10000, save_folder="src/results/",batch_size=256, n_grad_steps=20, ϵ=0.3, n_eps=500, learning_rate=1e-3)
 
-r_average, r_std = train(dqn, mdp, h, eval)
+r_average, r_std = train(dqn, pomdp, h, eval)
 
-plot(collect(1:500), r_average[1:500], legend=false)
-# savefig("src/results/run1.png")
-
+plot(collect(1:500), r_average[1:500], fillrange=(r_average-r_std,r_average+r_std), fillalpha=0.35, c=1, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
+savefig("src/results/run1.png")
 
 nothing
 
