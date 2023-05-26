@@ -1,6 +1,6 @@
 using Flux
 using BSON
-using NeuralVerification
+# using NeuralVerification
 using Plots
 
 # Load in generative model
@@ -88,6 +88,7 @@ function taxi_pomdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     a2ind = Dict()
     for (i, a) in enumerate(actions)
         a2ind[a] = i
+        a2ind[Float32.(a)] = i
     end
     return POMDP(s₀dists, actions, reward, obs, gen, a2ind)
 end
@@ -111,6 +112,7 @@ function image_taxi_pomdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     a2ind = Dict()
     for (i, a) in enumerate(actions)
         a2ind[a] = i
+        a2ind[Float32.(a)] = i
     end
     return POMDP(s₀dists, actions, reward, obs, gen, a2ind)
 end
@@ -135,7 +137,7 @@ function plot_results(crosstracks, downtracks, episode_number, save_folder)
     savefig("$(save_folder)$(episode_number).png")
 end
 
-function eval(pomdp, policy, ep_num, save_folder; n_eps=10, n_steps=50, plt_every=20)
+function eval(pomdp, policy, ep_num, save_folder; n_eps=50, n_steps=50, plt_every=20)
     crosstracks = []
     downtracks = []
     headings = []
@@ -183,11 +185,22 @@ n_actions = 5
 image_pomdp = image_taxi_pomdp(n_actions, λₚ=-10.0)
 image_dqn = image_taxi_dqn([16, 8], n_actions)
 
-h = Hyperparameters(buffer_size=5000, save_folder="src/image_results/", batch_size=64, 
-    n_grad_steps=20, ϵ=0.3, n_eps=500, learning_rate=1e-3)
+pomdp = taxi_pomdp(n_actions, λₚ=-10.0)
+dqn = taxi_dqn([16, 8], n_actions)
 
+image_h = Hyperparameters(buffer_size=5000, save_folder="src/image_results/", batch_size=64, 
+    n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
+h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=64, 
+    n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
+
+r_average_image, r_std_image = train(image_dqn, image_pomdp, image_h, eval)
 r_average, r_std = train(dqn, pomdp, h, eval)
 
-p = plot(collect(100:150), r_average[100:150], fillrange=(r_average[100:150]-r_std[100:150],r_average[100:150]+r_std[100:150]), fillalpha=0.35, c=1, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
+p = plot(collect(100:300), r_average[100:300], 
+    fillrange=(r_average[100:300]-r_std[100:300],r_average[100:300]+r_std[100:300]), 
+    fillalpha=0.35, c=1, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
+plot!(p, collect(100:300), r_average_image[100:300], 
+    fillrange=(r_average_image[100:300]-r_std_image[100:300],r_average_image[100:300]+r_std_image[100:300]), 
+    fillalpha=0.35, c=2, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
 
-dqn.policy(model([0.0, 0.0, 0.0 / 6.366468343804353, 0.0 / 17.248858791583547]))
+image_dqn.policy(model([0.0, 0.0, 0.0 / 6.366468343804353, 0.0 / 17.248858791583547]))
