@@ -5,6 +5,9 @@ using Flux: update!
 using ProgressBars
 using Parameters
 using Plots
+using NeuralVerification
+
+include("verify.jl")
 
 struct MDP
     s₀dists::Vector{Distribution}
@@ -39,6 +42,7 @@ end
     batch_size::Int64 = 64 # Number of samples from the replay buffer
     ϵ::Float64 = 0.3 # ϵ for ϵ-greedy exploration
     learning_rate::Float64 = 1e-3 # learning rate for ADAM optimizer
+    use_verify::Bool = false
     save_folder::String = "results/"
 end
 
@@ -65,6 +69,33 @@ function sample_batch(replay_buffer, target, a2ind, batch_size)
     y = r + maximum(target(O′), dims=1)
     # Return data
     return O, A, y
+end
+
+function sample_batch_verify(replay_buffer, target, a2ind, batch_size)
+    """
+    Samples and creates training batch
+    """
+    # Sample experience tuples
+    experiences = replay_buffer[randperm(length(replay_buffer))[1:batch_size]]
+    # Create S
+    O = hcat([e.o for e in experiences]...)
+    A = hcat([a2ind[e.a] for e in experiences]...)
+    # Create y
+    r = hcat([e.r for e in experiences]...)
+    verifynet = NeuralVerification.network(concat_networks(model, target))
+    y = zeros(batch_size)
+    # for i = 1:batch_size
+    #     println(i)
+    #     y[i] = experiences[i].r + get_max(verifynet,
+    #             [-0.8, -0.8, experiences[i].s′[1] / 6.366468343804353, experiences[i].s′[2] / 17.248858791583547],
+    #             [0.8, 0.8, experiences[i].s′[1] / 6.366468343804353, experiences[i].s′[2] / 17.248858791583547])
+    # end
+    y = [e.r + get_max(verifynet,
+                       [-0.8, -0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547],
+                       [0.8, 0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547])
+        for e in experiences]
+    # Return data
+    return O, A, reshape(y, 1, :)
 end
 
 function dqn_loss(policy, O, A, y)
@@ -106,7 +137,11 @@ function train(dqn::DQN, pomdp::POMDP, h::Hyperparameters, eval)
             # If enough data is in the replay buffer, perform some training steps
             if length(dqn.replay_buffer) == h.buffer_size
                 # Get training batch
-                O, A, y = sample_batch(dqn.replay_buffer, dqn.target, pomdp.a2ind, h.batch_size)
+                if h.use_verify
+                    O, A, y = sample_batch_verify(dqn.replay_buffer, dqn.target, pomdp.a2ind, h.batch_size)
+                else
+                    O, A, y = sample_batch(dqn.replay_buffer, dqn.target, pomdp.a2ind, h.batch_size)
+                end
                 # Train
                 for _ = 1:h.n_grad_steps
                     loss, back = Flux.pullback(() -> dqn_loss(dqn.policy, O, A, y), θ)
@@ -123,6 +158,7 @@ function train(dqn::DQN, pomdp::POMDP, h::Hyperparameters, eval)
             end
         end
         r_ave, r_std = eval(pomdp, dqn.policy, episode, h.save_folder)
+        println("R: ", r_ave, "STD: ", r_std)
         set_postfix(episodes, R="$r_ave", StDev="$r_std")
         r_average[episode] = r_ave
         r_stdev[episode] = r_std

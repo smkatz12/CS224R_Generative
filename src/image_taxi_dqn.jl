@@ -1,6 +1,6 @@
 using Flux
 using BSON
-# using NeuralVerification
+using NeuralVerification
 using Plots
 
 # Load in generative model
@@ -181,26 +181,103 @@ function image_taxi_dqn(hidden_sizes, n_actions)
     return DQN(policy, target, replay_buffer)
 end
 
-n_actions = 5
+n_actions = 3
 image_pomdp = image_taxi_pomdp(n_actions, λₚ=-10.0)
 image_dqn = image_taxi_dqn([16, 8], n_actions)
+# image_verify_dqn = image_taxi_dqn([16, 8], n_actions)
 
 pomdp = taxi_pomdp(n_actions, λₚ=-10.0)
 dqn = taxi_dqn([16, 8], n_actions)
 
-image_h = Hyperparameters(buffer_size=5000, save_folder="src/image_results/", batch_size=64, 
+image_h = Hyperparameters(buffer_size=5000, save_folder="src/image_results/", batch_size=8, 
     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
-h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=64, 
+# image_verify_h = Hyperparameters(buffer_size=5000, save_folder="src/image_verify_results/", batch_size=8, 
+#     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3, use_verify=true)
+h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=8, 
     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
 
 r_average_image, r_std_image = train(image_dqn, image_pomdp, image_h, eval)
+# r_average_image_verif, r_std_image_verif = train(image_verify_dqn, image_pomdp, image_verify_h, eval)
 r_average, r_std = train(dqn, pomdp, h, eval)
 
-p = plot(collect(100:300), r_average[100:300], 
-    fillrange=(r_average[100:300]-r_std[100:300],r_average[100:300]+r_std[100:300]), 
+p = plot(collect(100:150), r_average[100:150], 
+    fillrange=(r_average[100:150]-r_std[100:150],r_average[100:150]+r_std[100:150]), 
     fillalpha=0.35, c=1, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
-plot!(p, collect(100:300), r_average_image[100:300], 
-    fillrange=(r_average_image[100:300]-r_std_image[100:300],r_average_image[100:300]+r_std_image[100:300]), 
+plot!(p, collect(100:150), r_average_image[100:150], 
+    fillrange=(r_average_image[100:150]-r_std_image[100:150],r_average_image[100:150]+r_std_image[100:150]), 
     fillalpha=0.35, c=2, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
 
 image_dqn.policy(model([0.0, 0.0, 0.0 / 6.366468343804353, 0.0 / 17.248858791583547]))
+
+# Understanding latent space
+function plot_latent_space(npoints, s)
+    points = collect(range(-0.8, stop=0.8, length=npoints))
+    plots = []
+    for pt1 in points
+        for pt2 in points
+            im = (model([pt1, pt2, s[1] / 6.366468343804353, s[2] / 17.248858791583547]) .+ 1) ./ 2
+            im = reshape(im, 16, 8)
+            push!(plots, plot(Gray.(im'), axis=nothing))
+        end
+    end
+    return plot(plots..., layout=(npoints, npoints))
+end
+
+plot_latent_space(5, [0.0, 0.0])
+plot_latent_space(5, [5.0, 0.0])
+
+# Messing around with verification
+
+# function concat_networks(generator, controller)
+#     gen_ps = Flux.params(generator)
+#     cont_ps = Flux.params(controller)
+#     tmp_sizes = [size(p, 1) for p in gen_ps][1:2:end]
+#     generator_sizes = [4; tmp_sizes]
+#     tmp_sizes = [size(p, 1) for p in cont_ps][1:2:end]
+#     controller_sizes = [128; tmp_sizes]
+
+#     layers = Any[Dense(generator_sizes[i], generator_sizes[i+1], relu) for i = 1:length(generator_sizes)-2]
+#     push!(layers, Dense(generator_sizes[end-1], generator_sizes[end]))
+#     for i = 1:length(controller_sizes)-2
+#         push!(layers, Dense(controller_sizes[i], controller_sizes[i+1], relu))
+#     end
+#     push!(layers, Dense(controller_sizes[end-1], controller_sizes[end]))
+#     concat_model = Chain(layers)
+
+#     new_params = []
+#     for p in gen_ps
+#         push!(new_params, p)
+#     end
+#     for p in cont_ps
+#         push!(new_params, p)
+#     end
+
+#     Flux.loadparams!(concat_model, new_params)
+
+#     return concat_model
+# end
+
+# concat = concat_networks(model, image_dqn.policy)
+# verifynet = NeuralVerification.network(concat)
+
+# include("verify.jl")
+
+# function get_max(network, lbs, ubs)
+#     tmp = NeuralVerification.compute_output(network, lbs)
+#     N = length(tmp)
+#     values = zeros(N)
+
+#     # Define functions
+#     for i = 1:N
+#         coeffs = zeros(N)
+#         coeffs[i] = 1.0
+#         evaluate_objective_max(network, x) = dot(coeffs, NeuralVerification.compute_output(network, x))
+#         optimize_reach_max(reach) = ρ(coeffs, reach)
+#         x, under, values[i] = priority_optimization(network, lbs, ubs, optimize_reach_max, evaluate_objective_max)
+#     end
+
+#     return maximum(values)
+# end
+
+# value = get_max(verifynet, [-0.8, -0.8, 0.0, 0.0], [0.8, 0.8, 0.0, 0.0])
+# concat([0.8, -0.8, 0.0, 0.0])
