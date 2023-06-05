@@ -184,20 +184,20 @@ end
 n_actions = 3
 image_pomdp = image_taxi_pomdp(n_actions, λₚ=-10.0)
 image_dqn = image_taxi_dqn([16, 8], n_actions)
-# image_verify_dqn = image_taxi_dqn([16, 8], n_actions)
+image_verify_dqn = image_taxi_dqn([16, 8], n_actions)
 
 pomdp = taxi_pomdp(n_actions, λₚ=-10.0)
 dqn = taxi_dqn([16, 8], n_actions)
 
 image_h = Hyperparameters(buffer_size=5000, save_folder="src/image_results/", batch_size=8, 
     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
-# image_verify_h = Hyperparameters(buffer_size=5000, save_folder="src/image_verify_results/", batch_size=8, 
-#     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3, use_verify=true)
+image_verify_h = Hyperparameters(buffer_size=5000, save_folder="src/image_verify_results/", batch_size=8, 
+     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3, use_verify=true)
 h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=8, 
     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
 
 r_average_image, r_std_image = train(image_dqn, image_pomdp, image_h, eval)
-# r_average_image_verif, r_std_image_verif = train(image_verify_dqn, image_pomdp, image_verify_h, eval)
+r_average_image_verif, r_std_image_verif = train(image_verify_dqn, image_pomdp, image_verify_h, eval)
 r_average, r_std = train(dqn, pomdp, h, eval)
 
 p = plot(collect(100:150), r_average[100:150], 
