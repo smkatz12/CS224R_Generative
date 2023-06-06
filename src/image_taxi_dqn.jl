@@ -189,10 +189,16 @@ image_verify_dqn = image_taxi_dqn([16, 8], n_actions)
 pomdp = taxi_pomdp(n_actions, λₚ=-10.0)
 dqn = taxi_dqn([16, 8], n_actions)
 
+
+#Use fewer grad steps maybe? 
+#Originally set to 20 globally 
+
 image_h = Hyperparameters(buffer_size=5000, save_folder="src/image_results/", batch_size=8, 
     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
+
 image_verify_h = Hyperparameters(buffer_size=5000, save_folder="src/image_verify_results/", batch_size=8, 
      n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3, use_verify=true)
+
 h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=8, 
     n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
 
@@ -200,11 +206,11 @@ r_average_image, r_std_image = train(image_dqn, image_pomdp, image_h, eval)
 r_average_image_verif, r_std_image_verif = train(image_verify_dqn, image_pomdp, image_verify_h, eval)
 r_average, r_std = train(dqn, pomdp, h, eval)
 
-p = plot(collect(100:150), r_average[100:150], 
-    fillrange=(r_average[100:150]-r_std[100:150],r_average[100:150]+r_std[100:150]), 
+p = plot(collect(8:150), r_average[8:150], 
+    fillrange=(r_average[8:150]-r_std[8:150],r_average[8:150]+r_std[8:150]), 
     fillalpha=0.35, c=1, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
-plot!(p, collect(100:150), r_average_image[100:150], 
-    fillrange=(r_average_image[100:150]-r_std_image[100:150],r_average_image[100:150]+r_std_image[100:150]), 
+plot!(p, collect(8:150), r_average_image[8:150], 
+    fillrange=(r_average_image[8:150]-r_std_image[8:150],r_average_image[8:150]+r_std_image[8:150]), 
     fillalpha=0.35, c=2, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
 
 image_dqn.policy(model([0.0, 0.0, 0.0 / 6.366468343804353, 0.0 / 17.248858791583547]))

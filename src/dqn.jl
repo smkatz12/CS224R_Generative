@@ -82,7 +82,8 @@ function sample_batch_verify(replay_buffer, target, a2ind, batch_size)
     A = hcat([a2ind[e.a] for e in experiences]...)
     # Create y
     r = hcat([e.r for e in experiences]...)
-    verifynet = NeuralVerification.network(concat_networks(model, target))
+    concatNet = concat_networks(model, target)
+    verifynet = NeuralVerification.network(concatNet)
     y = zeros(batch_size)
     # for i = 1:batch_size
     #     println(i)
@@ -90,7 +91,7 @@ function sample_batch_verify(replay_buffer, target, a2ind, batch_size)
     #             [-0.8, -0.8, experiences[i].s′[1] / 6.366468343804353, experiences[i].s′[2] / 17.248858791583547],
     #             [0.8, 0.8, experiences[i].s′[1] / 6.366468343804353, experiences[i].s′[2] / 17.248858791583547])
     # end
-    y = [e.r + get_max(verifynet,
+    y = [e.r + get_max_heuristic(concatNet,
                        [-0.8, -0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547],
                        [0.8, 0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547])
         for e in experiences]
@@ -135,7 +136,7 @@ function train(dqn::DQN, pomdp::POMDP, h::Hyperparameters, eval)
             s = s′
             o = o′
             # If enough data is in the replay buffer, perform some training steps
-            if length(dqn.replay_buffer) == h.buffer_size
+            if length(dqn.replay_buffer) >= h.batch_size
                 # Get training batch
                 if h.use_verify
                     O, A, y = sample_batch_verify(dqn.replay_buffer, dqn.target, pomdp.a2ind, h.batch_size)
