@@ -87,6 +87,7 @@ function sample_batch_verify(replay_buffer, target, a2ind, batch_size)
     y = zeros(batch_size)
     # for i = 1:batch_size
     #     println(i)
+
     # y = [e.r + get_max(verifynet,
     #                    [-0.8, -0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547],
     #                    [0.8, 0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547])
@@ -113,8 +114,8 @@ function train(dqn::DQN, pomdp::POMDP, h::Hyperparameters, eval)
     # Initialize some counters and storage
     target_step_counter = 0
     episodes = ProgressBar(1:h.n_eps)
-    r_average = zeros(h.n_eps)
-    r_stdev = zeros(h.n_eps)
+    r_average = [] #zeros(h.n_eps)
+    r_stdev = [] #zeros(h.n_eps)
 
     for episode in episodes
         # Reset to sampled initial state
@@ -156,13 +157,16 @@ function train(dqn::DQN, pomdp::POMDP, h::Hyperparameters, eval)
                     dqn.target = deepcopy(dqn.policy)
                     target_step_counter = 0
                 end
+                r_ave, r_std = eval(pomdp, dqn.policy, (episode - 1) * 50 + step, h.save_folder)
+                push!(r_average, r_ave)
+                push!(r_stdev, r_std)
             end
         end
-        r_ave, r_std = eval(pomdp, dqn.policy, episode, h.save_folder)
-        println("R: ", r_ave, "STD: ", r_std)
+        r_ave, r_std = eval(pomdp, dqn.policy, 1, h.save_folder)
+        # println("R: ", r_ave, "STD: ", r_std)
         set_postfix(episodes, R="$r_ave", StDev="$r_std")
-        r_average[episode] = r_ave
-        r_stdev[episode] = r_std
+        # r_average[episode] = r_ave
+        # r_stdev[episode] = r_std
     end
     return r_average, r_stdev
 end

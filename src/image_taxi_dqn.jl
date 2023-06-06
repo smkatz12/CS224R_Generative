@@ -78,7 +78,7 @@ function taxi_pomdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     s₀dists = Uniform.([-10.0, -1.0], [10.0, 1.0]) #Two uniform distros. One between -10/10 and the other between -1/1
     #Captures 2-d state space
     actions = collect(range(-5.0, stop=5.0, length=n_actions))
-    reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2])
+    reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2]) + 200
     obs(s) = s
     function gen(s, a) 
         x′, _, θ′ = next_position(s[1], 0.0, s[2], a)
@@ -93,15 +93,17 @@ function taxi_pomdp(n_actions; λₚ=-1.0, λₕ=-1.0)
     return POMDP(s₀dists, actions, reward, obs, gen, a2ind)
 end
 
-function image_taxi_pomdp(n_actions; λₚ=-1.0, λₕ=-1.0)
+function image_taxi_pomdp(n_actions; λₚ=-1.0, λₕ=-1.0, δ=0.05)
     s₀dists = Uniform.([-10.0, -1.0], [10.0, 1.0]) #Two uniform distros. One between -10/10 and the other between -1/1
     #Captures 2-d state space
     actions = collect(range(-5.0, stop=5.0, length=n_actions))
-    reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2])
+    reward(s) = λₚ * abs(s[1]) + λₕ * abs(s[2]) + 200
     function obs(s)
         z = Float32.(rand(Uniform(-0.8, 0.8), 2))
         x = [z; s[1] / 6.366468343804353; s[2] / 17.248858791583547]
-        o = model(x)
+        # x = [z; s[2] / 6.366468343804353; s[1] / 17.248858791583547]
+        # x = [z; z]
+        o = model(x) #.+ δ * rand(Uniform(-1, 1), 128)
         return o
     end
     function gen(s, a) 
@@ -137,7 +139,7 @@ function plot_results(crosstracks, downtracks, episode_number, save_folder)
     savefig("$(save_folder)$(episode_number).png")
 end
 
-function eval(pomdp, policy, ep_num, save_folder; n_eps=50, n_steps=50, plt_every=20)
+function eval(pomdp, policy, ep_num, save_folder; n_eps=10, n_steps=50, plt_every=20)
     crosstracks = []
     downtracks = []
     headings = []
@@ -190,6 +192,7 @@ pomdp = taxi_pomdp(n_actions, λₚ=-10.0)
 dqn = taxi_dqn([16, 8], n_actions)
 
 
+
 #Use fewer grad steps maybe? 
 #Originally set to 20 globally 
 
@@ -199,9 +202,13 @@ image_verify_h = Hyperparameters(buffer_size=5000, save_folder="src/image_verify
 image_verify_h = Hyperparameters(buffer_size=5000, save_folder="src/image_verify_results/", batch_size=8, 
      n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3, use_verify=true)
 
-h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=8, 
-    n_grad_steps=20, ϵ=0.3, n_eps=300, learning_rate=1e-3)
 
+h = Hyperparameters(buffer_size=5000, save_folder="src/results/", batch_size=8, 
+    n_grad_steps=20, ϵ=0.3, n_eps=150, learning_rate=1e-3)
+
+
+image_pomdp = image_taxi_pomdp(n_actions, λₚ=-10.0, δ=0.1)
+image_dqn = image_taxi_dqn([16, 8], n_actions)
 r_average_image, r_std_image = train(image_dqn, image_pomdp, image_h, eval)
 r_average_image_verif, r_std_image_verif = train(image_verify_dqn, image_pomdp, image_verify_h, eval)
 r_average, r_std = train(dqn, pomdp, h, eval)
@@ -213,10 +220,17 @@ p = plot(collect(0:2500), r_average,
 plot!(p, collect(0:2500), r_average_image, 
     fillrange=(r_average_image-r_std_image,r_average_image+r_std_image), 
     fillalpha=0.35, c=2, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
-    
 plot!(p, collect(0:2500), r_average_image_verif, 
     fillrange=(r_average_image_verif-r_std_image_verif,r_average_image_verif+r_std_image_verif), 
     fillalpha=0.35, c=3, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
+
+# p = plot(collect(100:150), r_average[100:150], 
+#     fillrange=(r_average[100:150]-r_std[100:150],r_average[100:150]+r_std[100:150]), 
+#     fillalpha=0.35, c=1, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
+# plot!(p, collect(100:150), r_average_image[100:150], 
+#     fillrange=(r_average_image[100:150]-r_std_image[100:150],r_average_image[100:150]+r_std_image[100:150]), 
+#     fillalpha=0.35, c=2, label=std, legend=false, title="Reward vs Episodes", xlabel="# Episodes", ylabel="Reward")
+
 
 image_dqn.policy(model([0.0, 0.0, 0.0 / 6.366468343804353, 0.0 / 17.248858791583547]))
 
