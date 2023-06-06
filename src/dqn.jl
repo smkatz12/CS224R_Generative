@@ -82,18 +82,18 @@ function sample_batch_verify(replay_buffer, target, a2ind, batch_size)
     A = hcat([a2ind[e.a] for e in experiences]...)
     # Create y
     r = hcat([e.r for e in experiences]...)
-    concatNet = concat_networks(model, target)
-    verifynet = NeuralVerification.network(concatNet)
+    concat_net = concat_networks(model, target)
+    verifynet = NeuralVerification.network(concat_net)
     y = zeros(batch_size)
     # for i = 1:batch_size
     #     println(i)
-    #     y[i] = experiences[i].r + get_max(verifynet,
-    #             [-0.8, -0.8, experiences[i].s′[1] / 6.366468343804353, experiences[i].s′[2] / 17.248858791583547],
-    #             [0.8, 0.8, experiences[i].s′[1] / 6.366468343804353, experiences[i].s′[2] / 17.248858791583547])
-    # end
-    y = [e.r + get_max_heuristic(concatNet,
-                       [-0.8, -0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547],
-                       [0.8, 0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547])
+    # y = [e.r + get_max(verifynet,
+    #                    [-0.8, -0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547],
+    #                    [0.8, 0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547])
+    #     for e in experiences]
+    y = [e.r + get_max_heuristic(concat_net,
+        [-0.8, -0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547],
+        [0.8, 0.8, e.s′[1] / 6.366468343804353, e.s′[2] / 17.248858791583547])
         for e in experiences]
     # Return data
     return O, A, reshape(y, 1, :)
