@@ -147,3 +147,12 @@ function get_max(network, lbs, ubs)
 
     return maximum(values)
 end
+
+""" Heuristic """
+function get_max_heuristic(network, lbs, ubs)
+    dist = Uniform.(lbs .- 1e-8, ubs .+ 1e-8)
+    samples = rand.(dist, 100)
+    x = hcat(samples...)'
+    y = network(x)
+    return maximum(y)
+end
